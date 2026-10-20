@@ -1,434 +1,239 @@
-from datetime import datetime
 import os
 from flask import (
-    Flask,
-    flash,
-    redirect,
-    render_template_string,
-    request,
-    session,
-    url_for,
+    Flask, render_template_string, request, redirect, url_for, 
+    session, flash, send_from_directory
 )
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'project_remind_secret_key'
+app.config['SECRET_KEY'] = 'project-remind-secret-key-2026'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///remind.db'
-UPLOAD_FOLDER = 'uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
 
-if not os.path.exists(UPLOAD_FOLDER):
-  os.makedirs(UPLOAD_FOLDER)
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs('static', exist_ok=True)
 
 db = SQLAlchemy(app)
 
-
-# --- DATABASE MODELS ---
+# Database Models
 class User(db.Model):
-  id = db.Column(db.Integer, primary_key=True)
-  username = db.Column(db.String(80), unique=True, nullable=False)
-  password = db.Column(db.String(200), nullable=False)
-  role = db.Column(db.String(50), nullable=False)  # Coordinator, Staff, Official
-  office = db.Column(db.String(100), nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(20), nullable=False)  # 'Staff', 'Coordinator', 'Official'
 
+class Report(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(150), nullable=False)
+    barangay = db.Column(db.String(100), nullable=False)
+    submitted_by = db.Column(db.String(80), nullable=False)
+    filename = db.Column(db.String(200), nullable=True)
+    status = db.Column(db.String(50), default='Submitted')
 
-class Task(db.Model):
-  id = db.Column(db.Integer, primary_key=True)
-  title = db.Column(db.String(150), nullable=False)
-  description = db.Column(db.Text, nullable=False)
-  deadline = db.Column(db.String(50), nullable=False)
-  office_assigned = db.Column(db.String(100), nullable=False)
-  status = db.Column(db.String(50), default='Submitted')
-  submission_details = db.Column(db.Text, nullable=True)
-  submitted_at = db.Column(db.String(50), nullable=True)
+with app.app_context():
+    db.create_all()
+    # Create default accounts if none exist
+    if not User.query.filter_by(username='staff1').first():
+        db.session.add(User(username='staff1', password_hash=generate_password_hash('password123'), role='Staff'))
+        db.session.add(User(username='coord1', password_hash=generate_password_hash('password123'), role='Coordinator'))
+        db.session.add(User(username='official1', password_hash=generate_password_hash('password123'), role='Official'))
+        db.session.commit()
 
+# Direct Routes for PWABuilder & PWA Assets
+@app.route('/manifest.json')
+def serve_manifest():
+    return send_from_directory('static', 'manifest.json', mimetype='application/json')
 
-# --- HTML TEMPLATES ---
+@app.route('/sw.js')
+def serve_sw():
+    return send_from_directory('static', 'sw.js', mimetype='application/javascript')
 
-LOGIN_PAGE = """
+@app.route('/logo.png')
+def serve_logo():
+    return send_from_directory('static', 'logo.png', mimetype='image/png')
+
+# HTML Templates
+BASE_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Project REMIND - Login</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="manifest" href="/static/manifest.json">
-    <meta name="theme-color" content="#212529">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project REMIND</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1a202c">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7fafc; color: #2d3748; margin: 0; padding: 0; }
+        header { background: #2b6cb0; color: white; padding: 1rem; text-align: center; font-size: 1.25rem; font-weight: bold; }
+        .container { max-width: 800px; margin: 2rem auto; padding: 1rem; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn { background: #3182ce; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .btn:hover { background: #2b6cb0; }
+        .btn-danger { background: #e53e3e; }
+        .btn-danger:hover { background: #c53030; }
+        input, select, textarea { width: 100%; padding: 0.5rem; margin-top: 0.25rem; margin-bottom: 1rem; border: 1px solid #cbd5e0; border-radius: 4px; box-sizing: border-box; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { border: 1px solid #e2e8f0; padding: 0.75rem; text-align: left; }
+        th { background: #edf2f7; }
+        .flash { padding: 0.75rem; margin-bottom: 1rem; background: #fed7d7; color: #9b2c2c; border-radius: 4px; }
+    </style>
 </head>
-<body class="bg-light">
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container">
-            <span class="navbar-brand">Project REMIND</span>
-        </div>
-    </nav>
+<body>
+    <header>
+        Project REMIND
+        {% if session.get('user_id') %}
+            <span style="font-size: 0.9rem; font-weight: normal; float: right;">
+                Role: {{ session.get('role') }} | <a href="/logout" style="color: white;">Logout</a>
+            </span>
+        {% endif %}
+    </header>
     <div class="container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% with messages = get_flashed_messages() %}
             {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% for message in messages %}
+                    <div class="flash">{{ message }}</div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
-        <div class="row justify-content-center mt-5">
-            <div class="col-md-4">
-                <div class="card shadow">
-                    <div class="card-body">
-                        <h3 class="text-center mb-4">Personnel Login</h3>
-                        <form method="POST">
-                            <div class="mb-3">
-                                <label class="form-label">Username</label>
-                                <input type="text" name="username" class="form-control" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Password</label>
-                                <input type="password" name="password" class="form-control" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">Login</button>
-                        </form>
-                        <div class="text-center mt-3">
-                            <a href="/register">Need an account? Register here</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        {% block content %}{% endblock %}
     </div>
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/static/sw.js');
-        });
-      }
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('Service Worker registered!'))
+                    .catch(err => console.log('Service Worker registration failed:', err));
+            });
+        }
     </script>
 </body>
 </html>
 """
 
-REGISTER_PAGE = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Project REMIND - Register</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="manifest" href="/static/manifest.json">
-    <meta name="theme-color" content="#212529">
-</head>
-<body class="bg-light">
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container">
-            <span class="navbar-brand">Project REMIND - Registration</span>
-        </div>
-    </nav>
-    <div class="container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        <div class="row justify-content-center mt-4">
-            <div class="col-md-5">
-                <div class="card shadow">
-                    <div class="card-body">
-                        <h3 class="text-center mb-4">Create Personnel Account</h3>
-                        <form method="POST">
-                            <div class="mb-3">
-                                <label class="form-label">Username</label>
-                                <input type="text" name="username" class="form-control" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Password</label>
-                                <input type="password" name="password" class="form-control" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Role / Responsibility</label>
-                                <select name="role" class="form-select" required>
-                                    <option value="Staff">Staff (Submits & Uploads Reports)</option>
-                                    <option value="Coordinator">Coordinator (Views & Monitors Reports)</option>
-                                    <option value="Official">Official (Municipal Reviewer)</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Office / Barangay Name</label>
-                                <input type="text" name="office" class="form-control" placeholder="e.g. Barangay Pinaripad Sur" required>
-                            </div>
-                            <button type="submit" class="btn btn-success w-100">Register Account</button>
-                        </form>
-                        <div class="text-center mt-3">
-                            <a href="/login">Already have an account? Login here</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/static/sw.js');
-        });
-      }
-    </script>
-</body>
-</html>
-"""
+LOGIN_HTML = BASE_HTML.replace("{% block content %}{% endblock %}", """
+<h2>Login</h2>
+<form method="POST">
+    <label>Username</label>
+    <input type="text" name="username" required>
+    <label>Password</label>
+    <input type="password" name="password" required>
+    <button type="submit" class="btn">Login</button>
+</form>
+""")
 
-DASHBOARD_PAGE = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Project REMIND - Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="manifest" href="/static/manifest.json">
-    <meta name="theme-color" content="#212529">
-</head>
-<body class="bg-light">
-    <nav class="navbar navbar-dark bg-dark px-4 mb-4">
-        <span class="navbar-brand">Project REMIND Dashboard</span>
-        <div>
-            <span class="text-light me-3">User: <strong>{{ user.username }}</strong> ({{ user.role }} - {{ user.office }})</span>
-            <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
-        </div>
-    </nav>
-    <div class="container-fluid px-4">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+DASHBOARD_HTML = BASE_HTML.replace("{% block content %}{% endblock %}", """
+<h2>Welcome, {{ session['username'] }} ({{ session['role'] }})</h2>
 
-        <h2 class="mb-4">Reporting and Monitoring Overview</h2>
+{% if session['role'] == 'Staff' %}
+    <h3>Submit New Report</h3>
+    <form method="POST" action="/submit_report" enctype="multipart/form-data">
+        <label>Report Title</label>
+        <input type="text" name="title" required>
+        <label>Barangay Designation</label>
+        <input type="text" name="barangay" required>
+        <label>Attach File (optional)</label>
+        <input type="file" name="file">
+        <button type="submit" class="btn">Submit Report</button>
+    </form>
+{% endif %}
 
-        <div class="row">
-            <!-- Staff Submit / Upload Report Form -->
-            {% if user.role == 'Staff' %}
-            <div class="col-md-5 mb-4">
-                <div class="card shadow">
-                    <div class="card-header bg-primary text-white">Create New Report Task</div>
-                    <div class="card-body">
-                        <form method="POST" action="/create_task" enctype="multipart/form-data">
-                            <div class="mb-3">
-                                <label class="form-label">Report Title</label>
-                                <input type="text" name="title" class="form-control" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Description / Guidelines</label>
-                                <textarea name="description" class="form-control" rows="3" required></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Deadline</label>
-                                <input type="date" name="deadline" class="form-control" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Assigned Office / Barangay</label>
-                                <input type="text" name="office_assigned" class="form-control" value="{{ user.office }}" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Upload File for Submission</label>
-                                <input type="file" name="report_file" class="form-control" required>
-                            </div>
-                            <button type="submit" class="btn btn-success w-100">Publish Task</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
+<h3>Monitoring Table</h3>
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Barangay</th>
+            <th>Submitted By</th>
+            <th>Status</th>
+            <th>Attachment</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for report in reports %}
+        <tr>
+            <td>{{ report.id }}</td>
+            <td>{{ report.title }}</td>
+            <td>{{ report.barangay }}</td>
+            <td>{{ report.submitted_by }}</td>
+            <td>{{ report.status }}</td>
+            <td>
+                {% if report.filename %}
+                    <a href="/uploads/{{ report.filename }}" target="_blank">View File</a>
+                {% else %}
+                    None
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="6" style="text-align: center;">No reports submitted yet.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+""")
 
-            <!-- Coordinator / Official View: Monitoring Table -->
-            {% if user.role == 'Coordinator' or user.role == 'Official' %}
-            <div class="col-md-12">
-                <div class="card shadow">
-                    <div class="card-header bg-secondary text-white">Active Report Assignments</div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-bordered align-middle">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Task / Report</th>
-                                        <th>Office Assigned</th>
-                                        <th>Deadline</th>
-                                        <th>Status</th>
-                                        <th>Submission Details</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for task in tasks %}
-                                    <tr>
-                                        <td>
-                                            <strong>{{ task.title }}</strong><br>
-                                            <small class="text-muted">{{ task.description }}</small>
-                                        </td>
-                                        <td>{{ task.office_assigned }}</td>
-                                        <td>{{ task.deadline }}</td>
-                                        <td>
-                                            <span class="badge bg-info text-dark">Submitted</span>
-                                        </td>
-                                        <td>
-                                            <span class="text-success fw-bold small">Submitted on: {{ task.submitted_at }}</span><br>
-                                            <small class="text-dark"><strong>File:</strong> {{ task.submission_details }}</small>
-                                        </td>
-                                    </tr>
-                                    {% else %}
-                                    <tr>
-                                        <td colspan="5" class="text-center text-muted">
-                                            No report tasks available yet.
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/static/sw.js');
-        });
-      }
-    </script>
-</body>
-</html>
-"""
-
-
-# --- ROUTES ---
-
-
-@app.route('/')
-def index():
-  return redirect(url_for('login'))
-
-
-@app.route('/login', methods=['GET', 'POST'])
+# Routes
+@app.route('/', methods=['GET', 'POST'])
 def login():
-  if request.method == 'POST':
-    username = request.form['username']
-    password = request.form['password']
-    user = User.query.filter_by(username=username).first()
-
-    if user and check_password_hash(user.password, password):
-      session['user_id'] = user.id
-      flash('Logged in successfully!', 'success')
-      return redirect(url_for('dashboard'))
-    else:
-      flash('Invalid username or password.', 'danger')
-
-  return render_template_string(LOGIN_PAGE)
-
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-  if request.method == 'POST':
-    username = request.form['username']
-    password = request.form['password']
-    role = request.form['role']
-    office = request.form['office']
-
-    existing_user = User.query.filter_by(username=username).first()
-    if existing_user:
-      flash('Username already taken. Choose another.', 'danger')
-    else:
-      new_user = User(
-          username=username,
-          password=generate_password_hash(password),
-          role=role,
-          office=office,
-      )
-      db.session.add(new_user)
-      db.session.commit()
-      flash(
-          'Account successfully created! You can now log in.',
-          'success',
-      )
-      return redirect(url_for('login'))
-
-  return render_template_string(REGISTER_PAGE)
-
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password_hash, password):
+            session['user_id'] = user.id
+            session['username'] = user.username
+            session['role'] = user.role
+            return redirect(url_for('dashboard'))
+        flash('Invalid username or password.')
+    return render_template_string(LOGIN_HTML)
 
 @app.route('/dashboard')
 def dashboard():
-  if 'user_id' not in session:
-    return redirect(url_for('login'))
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    reports = Report.query.all()
+    return render_template_string(DASHBOARD_HTML, reports=reports)
 
-  user = User.query.get(session['user_id'])
-  tasks = Task.query.all()
-  return render_template_string(DASHBOARD_PAGE, user=user, tasks=tasks)
-
-
-@app.route('/create_task', methods=['POST'])
-def create_task():
-  if 'user_id' not in session:
-    return redirect(url_for('login'))
-
-  user = User.query.get(session['user_id'])
-  if user.role != 'Staff':
-    flash('Unauthorized action.', 'danger')
+@app.route('/submit_report', methods=['POST'])
+def submit_report():
+    if 'user_id' not in session or session.get('role') != 'Staff':
+        return redirect(url_for('login'))
+    
+    title = request.form['title']
+    barangay = request.form['barangay']
+    file = request.files.get('file')
+    filename = None
+    
+    if file and file.filename != '':
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        
+    new_report = Report(
+        title=title,
+        barangay=barangay,
+        submitted_by=session['username'],
+        filename=filename
+    )
+    db.session.add(new_report)
+    db.session.commit()
+    flash('Report submitted successfully!')
     return redirect(url_for('dashboard'))
 
-  title = request.form['title']
-  description = request.form['description']
-  deadline = request.form['deadline']
-  office_assigned = request.form['office_assigned']
-
-  filename = 'No file uploaded'
-  if 'report_file' in request.files:
-    file = request.files['report_file']
-    if file and file.filename != '':
-      filename = secure_filename(file.filename)
-      file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-
-  new_task = Task(
-      title=title,
-      description=description,
-      deadline=deadline,
-      office_assigned=office_assigned,
-      status='Submitted',
-      submission_details=filename,
-      submitted_at=datetime.now().strftime('%Y-%m-%d %H:%M'),
-  )
-  db.session.add(new_task)
-  db.session.commit()
-  flash('Report successfully submitted and uploaded!', 'success')
-  return redirect(url_for('dashboard'))
-
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/logout')
 def logout():
-  session.pop('user_id', None)
-  flash('Logged out successfully.', 'info')
-  return redirect(url_for('login'))
-
-
-# --- DATABASE INITIALIZATION ---
-with app.app_context():
-  db.create_all()
-  default_users = [
-      ('coordinator_admin', 'Coordinator', 'Municipal Office'),
-      ('barangay_secretary', 'Staff', 'Barangay Pinaripad Sur'),
-      ('municipal_mayor', 'Official', 'Municipal Hall'),
-  ]
-  for uname, urole, uoffice in default_users:
-    if not User.query.filter_by(username=uname).first():
-      u = User(
-          username=uname,
-          password=generate_password_hash('password123'),
-          role=urole,
-          office=uoffice,
-      )
-      db.session.add(u)
-  db.session.commit()
+    session.clear()
+    return redirect(url_for('login'))
 
 if __name__ == '__main__':
-  app.run(host='0.0.0.0', port=8080, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
