@@ -3,10 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project REMIND</title>
+    <title>Project REMIND - Dashboard</title>
     <link rel="manifest" href="/manifest.json">
+    <style>
+        :root {
+            --primary: #1A202C;
+            --accent: #3182CE;
+            --bg: #F7FAFC;
+            --card-bg: #FFFFFF;
+            --text: #2D3748;
+            --text-light: #718096;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #E2E8F0;
+            padding-bottom: 12px;
+        }
+        h1 {
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+        .status-badge {
+            background-color: #C6F6D5;
+            color: #22543D;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        .grid {
+            display: grid;
+            gap: 16px;
+        }
+        .card {
+            background-color: var(--card-bg);
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border-left: 5px solid var(--accent);
+        }
+        .card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: var(--primary);
+        }
+        .card p {
+            font-size: 0.95rem;
+            color: var(--text-light);
+            line-height: 1.4;
+        }
+        .time {
+            font-size: 0.75rem;
+            color: #A0AEC0;
+            margin-top: 8px;
+            display: block;
+        }
+    </style>
 </head>
 <body>
-    <h1>Welcome to Project REMIND!</h1>
+
+    <header>
+        <h1>REMIND</h1>
+        <span class="status-badge">● Live System</span>
+    </header>
+
+    <div class="grid">
+        <div class="card">
+            <h3>📢 Announcement</h3>
+            <p>Welcome to Pinaripad National High School's Real-time Educational Messaging and Information Notification Dashboard.</p>
+            <span class="time">Today, 11:30 AM</span>
+        </div>
+
+        <div class="card" style="border-left-color: #38A169;">
+            <h3>📅 Upcoming Schedule</h3>
+            <p>STEM Strand meeting and final preparation for the upcoming project presentation.</p>
+            <span class="time">Tomorrow, 9:00 AM</span>
+        </div>
+
+        <div class="card" style="border-left-color: #D69E2E;">
+            <h3>⚠️ Important Alert</h3>
+            <p>Please check your notification logs regularly for real-time campus updates and announcements.</p>
+            <span class="time">System Active</span>
+        </div>
+    </div>
+
 </body>
 </html>
