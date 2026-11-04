@@ -44,23 +44,23 @@ with app.app_context():
         db.session.commit()
 
 # Direct Routes for PWABuilder & PWA Assets
-@app.route('/manifest.json')
-def manifest():
-    return {
-        "name": "Project REMIND",
-        "short_name": "REMIND",
-        "start_url": "/",
-        "display": "standalone",
-        "background_color": "#ffffff",
-        "theme_color": "#1a202c",
-        "icons": [
-            {
-                "src": "https://via.placeholder.com/512",
-                "sizes": "512x512",
-                "type": "image/png"
-            }
-        ]
+{
+  "name": "Project REMIND",
+  "short_name": "REMIND",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1A202C",
+  "description": "Real-time Educational Messaging and Information Notification Dashboard",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/512",
+      "sizes": "512x512",
+      "type": "image/png"
     }
+  ]
+}
 
 @app.route('/sw.js')
 def service_worker():
