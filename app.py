@@ -65,7 +65,7 @@ def manifest():
 @app.route('/sw.js')
 def service_worker():
     return app.response_class("self.addEventListener
-
+                              
 # HTML Templates
 BASE_HTML = """
 <!DOCTYPE html>
