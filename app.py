@@ -4,7 +4,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Welcome to Project REMIND!"
+    return render_template('index.html')
 
 @app.route('/manifest.json')
 def manifest():
