@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project REMIND - Dashboard</title>
+    <title>REMIND - Report Entry & Monitoring Dashboard</title>
     <link rel="manifest" href="/manifest.json">
     <style>
         :root {
-            --primary: #1A202C;
-            --accent: #3182CE;
-            --bg: #F7FAFC;
+            --primary: #1A365D;
+            --accent: #2B6CB0;
+            --bg: #F0F4F8;
             --card-bg: #FFFFFF;
             --text: #2D3748;
             --text-light: #718096;
@@ -23,18 +23,18 @@
         body {
             background-color: var(--bg);
             color: var(--text);
-            padding: 20px;
+            padding: 16px;
         }
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 24px;
-            border-bottom: 2px solid #E2E8F0;
-            padding-bottom: 12px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #CBD5E0;
+            padding-bottom: 10px;
         }
         h1 {
-            font-size: 1.5rem;
+            font-size: 1.3rem;
             color: var(--primary);
         }
         .status-badge {
@@ -42,62 +42,62 @@
             color: #22543D;
             padding: 4px 10px;
             border-radius: 20px;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             font-weight: bold;
         }
         .grid {
             display: grid;
-            gap: 16px;
+            gap: 14px;
         }
         .card {
             background-color: var(--card-bg);
-            padding: 16px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            padding: 14px;
+            border-radius: 10px;
+            box-shadow: 0 3px 5px rgba(0,0,0,0.05);
             border-left: 5px solid var(--accent);
         }
         .card h3 {
-            font-size: 1.1rem;
-            margin-bottom: 8px;
+            font-size: 1rem;
+            margin-bottom: 6px;
             color: var(--primary);
         }
         .card p {
-            font-size: 0.95rem;
+            font-size: 0.85rem;
             color: var(--text-light);
             line-height: 1.4;
         }
-        .time {
-            font-size: 0.75rem;
-            color: #A0AEC0;
+        .meta {
             margin-top: 8px;
-            display: block;
+            font-size: 0.75rem;
+            color: #4A5568;
+            font-weight: 600;
         }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>REMIND</h1>
-        <span class="status-badge">● Live System</span>
+        <h1>REMIND Dashboard</h1>
+        <span class="status-badge">● System Active</span>
     </header>
 
     <div class="grid">
         <div class="card">
-            <h3>📢 Announcement</h3>
-            <p>Welcome to Pinaripad National High School's Real-time Educational Messaging and Information Notification Dashboard.</p>
-            <span class="time">Today, 11:30 AM</span>
+            <h3>📋 Pending Report Task</h3>
+            <p>Monthly Barangay Health and Sanitation Status Report submission.</p>
+            <div class="meta">Deadline: Nov 10, 2026 | Assigned: Health Office</div>
         </div>
 
-        <div class="card" style="border-left-color: #38A169;">
-            <h3>📅 Upcoming Schedule</h3>
-            <p>STEM Strand meeting and final preparation for the upcoming project presentation.</p>
-            <span class="time">Tomorrow, 9:00 AM</span>
+        <div class="card" style="border-left-color: #319795;">
+            <h3>🔄 Monitoring Progress</h3>
+            <p>Municipal Infrastructure Project Evaluation and Status Tracking.</p>
+            <div class="meta">Status: In Progress | Assigned: Engineering Dept</div>
         </div>
 
-        <div class="card" style="border-left-color: #D69E2E;">
-            <h3>⚠️ Important Alert</h3>
-            <p>Please check your notification logs regularly for real-time campus updates and announcements.</p>
-            <span class="time">System Active</span>
+        <div class="card" style="border-left-color: #DD6B20;">
+            <h3>🔔 Information Notification</h3>
+            <p>New reporting guidelines and deadline alerts have been dispatched to all authorized personnel.</p>
+            <div class="meta">Priority: High</div>
         </div>
     </div>
 
