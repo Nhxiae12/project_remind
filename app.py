@@ -45,16 +45,26 @@ with app.app_context():
 
 # Direct Routes for PWABuilder & PWA Assets
 @app.route('/manifest.json')
-def serve_manifest():
-    return send_from_directory('static', 'manifest.json', mimetype='application/json')
+def manifest():
+    return {
+        "name": "Project REMIND",
+        "short_name": "REMIND",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#1a202c",
+        "icons": [
+            {
+                "src": "https://via.placeholder.com/512",
+                "sizes": "512x512",
+                "type": "image/png"
+            }
+        ]
+    }
 
 @app.route('/sw.js')
-def serve_sw():
-    return send_from_directory('static', 'sw.js', mimetype='application/javascript')
-
-@app.route('/logo.png')
-def serve_logo():
-    return send_from_directory('static', 'logo.png', mimetype='image/png')
+def service_worker():
+    return app.response_class("self.addEventListener
 
 # HTML Templates
 BASE_HTML = """
